@@ -16,8 +16,10 @@ class LXMessage:
     SENDING            = 0x02
     SENT               = 0x04
     DELIVERED          = 0x08
+    REJECTED           = 0xFD
+    CANCELLED          = 0xFE
     FAILED             = 0xFF
-    states             = [GENERATING, OUTBOUND, SENDING, SENT, DELIVERED, FAILED]
+    states             = [GENERATING, OUTBOUND, SENDING, SENT, DELIVERED, REJECTED, CANCELLED, FAILED]
 
     UNKNOWN            = 0x00
     PACKET             = 0x01
@@ -378,7 +380,7 @@ class LXMessage:
             if self.desired_method == LXMessage.OPPORTUNISTIC:
                 if self.__destination.type == RNS.Destination.SINGLE:
                     if content_size > LXMessage.ENCRYPTED_PACKET_MAX_CONTENT:
-                        RNS.log(f"Opportunistic delivery was requested for {self}, but content exceeds packet size limit. Falling back to link-based delivery.", RNS.LOG_DEBUG)
+                        RNS.log(f"Opportunistic delivery was requested for {self}, but content of length {content_size} exceeds packet size limit. Falling back to link-based delivery.", RNS.LOG_DEBUG)
                         self.desired_method = LXMessage.DIRECT
 
             # Set delivery parameters according to delivery method
@@ -564,22 +566,27 @@ class LXMessage:
         if resource.status == RNS.Resource.COMPLETE:
             self.__mark_delivered()
         else:
-            resource.link.teardown()
-            self.state = LXMessage.OUTBOUND
+            if resource.status == RNS.Resource.REJECTED:
+                self.state = LXMessage.REJECTED
+
+            elif self.state != LXMessage.CANCELLED:
+                resource.link.teardown()
+                self.state = LXMessage.OUTBOUND
 
     def __propagation_resource_concluded(self, resource):
         if resource.status == RNS.Resource.COMPLETE:
             self.__mark_propagated()
         else:
-            resource.link.teardown()
-            self.state = LXMessage.OUTBOUND
+            if self.state != LXMessage.CANCELLED:
+                resource.link.teardown()
+                self.state = LXMessage.OUTBOUND
 
     def __link_packet_timed_out(self, packet_receipt):
-        if packet_receipt:
-            packet_receipt.destination.teardown()
-    
-        self.state = LXMessage.OUTBOUND
-
+        if self.state != LXMessage.CANCELLED:
+            if packet_receipt:
+                packet_receipt.destination.teardown()
+        
+            self.state = LXMessage.OUTBOUND
 
     def __update_transfer_progress(self, resource):
         self.progress = 0.10 + (resource.get_progress()*0.90)

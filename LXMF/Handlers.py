@@ -45,18 +45,31 @@ class LXMFPropagationAnnounceHandler:
                     if pn_announce_data_is_valid(data):
                         node_timebase = data[1]
                         propagation_transfer_limit = None
+                        wanted_inbound_peers = None
+                        if len(data) >= 4:
+                            # TODO: Rethink, probably not necessary anymore
+                            # try:
+                            #     wanted_inbound_peers = int(data[3])
+                            # except:
+                            #     wanted_inbound_peers = None
+                            pass
+
                         if len(data) >= 3:
                             try:
                                 propagation_transfer_limit = float(data[2])
                             except:
                                 propagation_transfer_limit = None
 
-                        if data[0] == True:
-                            if RNS.Transport.hops_to(destination_hash) <= self.lxmrouter.autopeer_maxdepth:
-                                self.lxmrouter.peer(destination_hash, node_timebase, propagation_transfer_limit)
+                        if destination_hash in self.lxmrouter.static_peers:
+                            self.lxmrouter.peer(destination_hash, node_timebase, propagation_transfer_limit, wanted_inbound_peers)
 
-                        elif data[0] == False:
-                            self.lxmrouter.unpeer(destination_hash, node_timebase)
+                        else:
+                            if data[0] == True:
+                                if RNS.Transport.hops_to(destination_hash) <= self.lxmrouter.autopeer_maxdepth:
+                                    self.lxmrouter.peer(destination_hash, node_timebase, propagation_transfer_limit, wanted_inbound_peers)
+
+                            elif data[0] == False:
+                                self.lxmrouter.unpeer(destination_hash, node_timebase)
 
         except Exception as e:
             RNS.log("Error while evaluating propagation node announce, ignoring announce.", RNS.LOG_DEBUG)
