@@ -1,3 +1,13 @@
+# Ivans Fork
+
+This is a fork of the original LXMF repository by Mark Qvist.
+
+- Use Python 3.13
+- Add Poetry 
+- Use Ruff and Safety for linting and security
+- Numerous ruff fixes and code improvements
+
+
 # Lightweight Extensible Message Format
 
 LXMF is a simple and flexible messaging format and delivery protocol that allows a wide variety of implementations, while using as little bandwidth as possible. It is built on top of [Reticulum](https://reticulum.network) and offers zero-conf message routing, end-to-end encryption and Forward Secrecy, and can be transported over any kind of medium that Reticulum supports.

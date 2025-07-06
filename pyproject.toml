@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "lxmf"
+version = "0.1.0"
+description = ""
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+packages = [{ include = "LXMF" }]
+
+[tool.poetry.dependencies]
+python = ">=3.13"
+rns = ">=0.9.6,<0.10.0"
+
+[tool.poetry.scripts]
+lxmd = "LXMF.Utilities.lxmd:main"
+
+[tool.poetry.group.dev.dependencies]
+safety = "^3.5.2"
+ruff = "^0.12.2"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+

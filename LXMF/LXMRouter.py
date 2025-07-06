@@ -1,27 +1,24 @@
-import os
-import sys
-import time
-import math
-import random
-import base64
 import atexit
+import base64
+import math
+import os
+import random
 import signal
+import sys
 import threading
-
+import time
 from collections import deque
 
 import RNS
 import RNS.vendor.umsgpack as msgpack
 
-from .LXMF import APP_NAME
-from .LXMF import FIELD_TICKET
-
-from .LXMPeer import LXMPeer
-from .LXMessage import LXMessage
-from .Handlers import LXMFDeliveryAnnounceHandler
-from .Handlers import LXMFPropagationAnnounceHandler
-
 import LXMF.LXStamper as LXStamper
+
+from .Handlers import LXMFDeliveryAnnounceHandler, LXMFPropagationAnnounceHandler
+from .LXMessage import LXMessage
+from .LXMF import APP_NAME, FIELD_TICKET
+from .LXMPeer import LXMPeer
+
 
 class LXMRouter:
     MAX_DELIVERY_ATTEMPTS = 5
@@ -98,7 +95,7 @@ class LXMRouter:
         self.propagation_node = False
         self.propagation_node_start_time = None
 
-        if storagepath == None:
+        if storagepath is None:
             raise ValueError("LXMF cannot be initialised without a storage path")
         else:
             self.storagepath = storagepath+"/lxmf"
@@ -107,7 +104,7 @@ class LXMRouter:
         self.outbound_propagation_node = None
         self.outbound_propagation_link = None
 
-        if delivery_limit == None:
+        if delivery_limit is None:
             delivery_limit = LXMRouter.DELIVERY_LIMIT
 
         self.message_storage_limit = None
@@ -136,7 +133,7 @@ class LXMRouter:
         self.stamp_gen_lock = threading.Lock()
         self.exit_handler_running = False
 
-        if identity == None:
+        if identity is None:
             identity = RNS.Identity()
 
         self.identity = identity
@@ -147,17 +144,17 @@ class LXMRouter:
         self.unpeered_propagation_incoming = 0
         self.unpeered_propagation_rx_bytes = 0
 
-        if autopeer != None:
+        if autopeer is not None:
             self.autopeer = autopeer
         else:
             self.autopeer = LXMRouter.AUTOPEER
 
-        if autopeer_maxdepth != None:
+        if autopeer_maxdepth is not None:
             self.autopeer_maxdepth = autopeer_maxdepth
         else:
             self.autopeer_maxdepth = LXMRouter.AUTOPEER_MAXDEPTH
 
-        if max_peers == None:
+        if max_peers is None:
             self.max_peers = LXMRouter.MAX_PEERS
         else:
             if type(max_peers) == int and max_peers >= 0:
@@ -250,13 +247,13 @@ class LXMRouter:
                         if not type(self.available_tickets) == dict:
                             RNS.log("Invalid data format for loaded available tickets, recreating...", RNS.LOG_ERROR)
                             self.available_tickets = {"outbound": {}, "inbound": {}, "last_deliveries": {}}
-                        if not "outbound" in self.available_tickets:
+                        if "outbound" not in self.available_tickets:
                             RNS.log("Missing outbound entry in loaded available tickets, recreating...", RNS.LOG_ERROR)
                             self.available_tickets["outbound"] = {}
-                        if not "inbound" in self.available_tickets:
+                        if "inbound" not in self.available_tickets:
                             RNS.log("Missing inbound entry in loaded available tickets, recreating...", RNS.LOG_ERROR)
                             self.available_tickets["inbound"] = {}
-                        if not "last_deliveries" in self.available_tickets:
+                        if "last_deliveries" not in self.available_tickets:
                             RNS.log("Missing local_deliveries entry in loaded available tickets, recreating...", RNS.LOG_ERROR)
                             self.available_tickets["last_deliveries"] = {}
 
@@ -313,7 +310,7 @@ class LXMRouter:
         if self.enforce_ratchets:
             delivery_destination.enforce_ratchets()
 
-        if display_name != None:
+        if display_name is not None:
             def get_app_data():
                 return self.get_announce_app_data(delivery_destination.hash)
             delivery_destination.set_default_app_data(get_app_data)
@@ -329,7 +326,7 @@ class LXMRouter:
     def set_inbound_stamp_cost(self, destination_hash, stamp_cost):
         if destination_hash in self.delivery_destinations:
             delivery_destination = self.delivery_destinations[destination_hash]
-            if stamp_cost == None:
+            if stamp_cost is None:
                 delivery_destination.stamp_cost = None
                 return True
             elif type(stamp_cost) == int:
@@ -339,7 +336,7 @@ class LXMRouter:
                     delivery_destination.stamp_cost = stamp_cost
                 else:
                     return False
-    
+
                 return True
 
         return False
@@ -361,7 +358,7 @@ class LXMRouter:
         else:
             if self.outbound_propagation_node != destination_hash:
                 self.outbound_propagation_node = destination_hash
-                if self.outbound_propagation_link != None:
+                if self.outbound_propagation_link is not None:
                     if self.outbound_propagation_link.destination.hash != destination_hash:
                         self.outbound_propagation_link.teardown()
                         self.outbound_propagation_link = None
@@ -377,13 +374,13 @@ class LXMRouter:
         return self.get_outbound_propagation_node()
 
     def set_retain_node_lxms(self, retain):
-        if retain == True:
+        if retain:
             self.retain_synced_on_node = True
         else:
             self.retain_synced_on_node = False
 
     def set_authentication(self, required=None):
-        if required != None:
+        if required is not None:
             self.auth_required = required
 
     def requires_authentication(self):
@@ -391,7 +388,7 @@ class LXMRouter:
 
     def allow(self, identity_hash=None):
         if isinstance(identity_hash, bytes) and len(identity_hash) == RNS.Identity.TRUNCATED_HASHLENGTH//8:
-            if not identity_hash in self.allowed_list:
+            if identity_hash not in self.allowed_list:
                 self.allowed_list.append(identity_hash)
         else:
             raise ValueError("Allowed identity hash must be "+str(RNS.Identity.TRUNCATED_HASHLENGTH//8)+" bytes")
@@ -405,26 +402,26 @@ class LXMRouter:
 
     def prioritise(self, destination_hash=None):
         if isinstance(destination_hash, bytes) and len(destination_hash) == RNS.Reticulum.TRUNCATED_HASHLENGTH//8:
-            if not destination_hash in self.prioritised_list:
+            if destination_hash not in self.prioritised_list:
                 self.prioritised_list.append(destination_hash)
         else:
             raise ValueError("Prioritised destination hash must be "+str(RNS.Reticulum.TRUNCATED_HASHLENGTH//8)+" bytes")
 
     def unprioritise(self, identity_hash=None):
-        if isinstance(destination_hash, bytes) and len(destination_hash) == RNS.Reticulum.TRUNCATED_HASHLENGTH//8:
-            if destination_hash in self.prioritised_list:
-                self.prioritised_list.pop(destination_hash)
+        if isinstance(identity_hash, bytes) and len(identity_hash) == RNS.Reticulum.TRUNCATED_HASHLENGTH//8:
+            if identity_hash in self.prioritised_list:
+                self.prioritised_list.pop(identity_hash)
         else:
             raise ValueError("Prioritised destination hash must be "+str(RNS.Reticulum.TRUNCATED_HASHLENGTH//8)+" bytes")
 
     def request_messages_from_propagation_node(self, identity, max_messages = PR_ALL_MESSAGES):
-        if max_messages == None:
+        if max_messages is None:
             max_messages = LXMRouter.PR_ALL_MESSAGES
 
         self.propagation_transfer_progress = 0.0
         self.propagation_transfer_max_messages = max_messages
-        if self.outbound_propagation_node != None:
-            if self.outbound_propagation_link != None and self.outbound_propagation_link.status == RNS.Link.ACTIVE:
+        if self.outbound_propagation_node is not None:
+            if self.outbound_propagation_link is not None and self.outbound_propagation_link.status == RNS.Link.ACTIVE:
                 self.propagation_transfer_state = LXMRouter.PR_LINK_ESTABLISHED
                 RNS.log("Requesting message list from propagation node", RNS.LOG_DEBUG)
                 self.outbound_propagation_link.identify(identity)
@@ -436,7 +433,7 @@ class LXMRouter:
                 )
                 self.propagation_transfer_state = LXMRouter.PR_REQUEST_SENT
             else:
-                if self.outbound_propagation_link == None:
+                if self.outbound_propagation_link is None:
                     if RNS.Transport.has_path(self.outbound_propagation_node):
                         self.wants_download_on_path_available_from = None
                         self.propagation_transfer_state = LXMRouter.PR_LINK_ESTABLISHING
@@ -461,7 +458,7 @@ class LXMRouter:
             RNS.log("Cannot request LXMF propagation node sync, no default propagation node configured", RNS.LOG_WARNING)
 
     def cancel_propagation_node_requests(self):
-        if self.outbound_propagation_link != None:
+        if self.outbound_propagation_link is not None:
             self.outbound_propagation_link.teardown()
             self.outbound_propagation_link = None
 
@@ -479,7 +476,8 @@ class LXMRouter:
 
             self.propagation_entries = {}
 
-            st = time.time(); RNS.log("Indexing messagestore...", RNS.LOG_NOTICE)
+            st = time.time()
+            RNS.log("Indexing messagestore...", RNS.LOG_NOTICE)
             for filename in os.listdir(self.messagepath):
                 components = filename.split("_")
                 if len(components) == 2:
@@ -506,11 +504,12 @@ class LXMRouter:
 
                             except Exception as e:
                                 RNS.log("Could not read LXM from message store. The contained exception was: "+str(e), RNS.LOG_ERROR)
-            
-            et = time.time(); mps = 0 if et-st == 0 else math.floor(len(self.propagation_entries)/(et-st))
+
+            et = time.time()
+            mps = 0 if et-st == 0 else math.floor(len(self.propagation_entries)/(et-st))
             RNS.log(f"Indexed {len(self.propagation_entries)} messages in {RNS.prettytime(et-st)}, {mps} msgs/s", RNS.LOG_NOTICE)
             RNS.log("Rebuilding peer synchronisation states...", RNS.LOG_NOTICE)
-            st = time.time();
+            st = time.time()
 
             if os.path.isfile(self.storagepath+"/peers"):
                 peers_file = open(self.storagepath+"/peers", "rb")
@@ -530,10 +529,10 @@ class LXMRouter:
                             # momentarily here, so peering config can be updated even if
                             # the static peer is not available to directly send an announce.
                             RNS.Transport.request_path(peer.destination_hash)
-                        if peer.identity != None:
+                        if peer.identity is not None:
                             self.peers[peer.destination_hash] = peer
                             lim_str = ", no transfer limit"
-                            if peer.propagation_transfer_limit != None:
+                            if peer.propagation_transfer_limit is not None:
                                 lim_str = ", "+RNS.prettysize(peer.propagation_transfer_limit*1000)+" transfer limit"
                             RNS.log("Rebuilt peer "+RNS.prettyhexrep(peer.destination_hash)+" with "+str(peer.unhandled_message_count)+" unhandled messages"+lim_str, RNS.LOG_DEBUG)
                         else:
@@ -544,7 +543,7 @@ class LXMRouter:
 
             if len(self.static_peers) > 0:
                 for static_peer in self.static_peers:
-                    if not static_peer in self.peers:
+                    if static_peer not in self.peers:
                         RNS.log(f"Activating static peering with {RNS.prettyhexrep(static_peer)}", RNS.LOG_NOTICE)
                         self.peers[static_peer] = LXMPeer(self, static_peer)
                         if self.peers[static_peer].last_heard == 0:
@@ -584,7 +583,7 @@ class LXMRouter:
             self.control_destination = RNS.Destination(self.identity, RNS.Destination.IN, RNS.Destination.SINGLE, APP_NAME, "propagation", "control")
             self.control_destination.register_request_handler(LXMRouter.STATS_GET_PATH, self.stats_get_request, allow = RNS.Destination.ALLOW_LIST, allowed_list=[self.identity.hash])
 
-            if self.message_storage_limit != None:
+            if self.message_storage_limit is not None:
                 limit_str = ", limit is "+RNS.prettysize(self.message_storage_limit)
             else:
                 limit_str = ""
@@ -609,7 +608,7 @@ class LXMRouter:
         self._enforce_stamps = False
 
     def ignore_destination(self, destination_hash):
-        if not destination_hash in self.ignored_list:
+        if destination_hash not in self.ignored_list:
             self.ignored_list.append(destination_hash)
 
     def unignore_destination(self, destination_hash):
@@ -619,25 +618,25 @@ class LXMRouter:
     def set_message_storage_limit(self, kilobytes = None, megabytes = None, gigabytes = None):
         limit_bytes = 0
 
-        if kilobytes != None:
+        if kilobytes is not None:
             limit_bytes += kilobytes*1000
 
-        if megabytes != None:
+        if megabytes is not None:
             limit_bytes += megabytes*1000*1000
 
-        if gigabytes != None:
+        if gigabytes is not None:
             limit_bytes += gigabytes*1000*1000*1000
 
         if limit_bytes == 0:
             limit_bytes = None
 
         try:
-            if limit_bytes == None or int(limit_bytes) > 0:
+            if limit_bytes is None or int(limit_bytes) > 0:
                 self.message_storage_limit = int(limit_bytes)
             else:
                 raise ValueError("Cannot set LXMF information storage limit to "+str(limit_bytes))
-        
-        except Exception as e:
+
+        except Exception:
             raise ValueError("Cannot set LXMF information storage limit to "+str(limit_bytes))
 
     def message_storage_limit(self):
@@ -652,25 +651,25 @@ class LXMRouter:
     def set_information_storage_limit(self, kilobytes = None, megabytes = None, gigabytes = None):
         limit_bytes = 0
 
-        if kilobytes != None:
+        if kilobytes is not None:
             limit_bytes += kilobytes*1000
 
-        if megabytes != None:
+        if megabytes is not None:
             limit_bytes += megabytes*1000*1000
 
-        if gigabytes != None:
+        if gigabytes is not None:
             limit_bytes += gigabytes*1000*1000*1000
 
         if limit_bytes == 0:
             limit_bytes = None
 
         try:
-            if limit_bytes == None or int(limit_bytes) > 0:
+            if limit_bytes is None or int(limit_bytes) > 0:
                 self.information_storage_limit = int(limit_bytes)
             else:
                 raise ValueError("Cannot set LXMF information storage limit to "+str(limit_bytes))
-        
-        except Exception as e:
+
+        except Exception:
             raise ValueError("Cannot set LXMF information storage limit to "+str(limit_bytes))
 
     def information_storage_limit(self):
@@ -748,7 +747,7 @@ class LXMRouter:
             return node_stats
 
     def stats_get_request(self, path, data, request_id, remote_identity, requested_at):
-        if remote_identity == None:
+        if remote_identity is None:
             return LXMPeer.ERROR_NO_IDENTITY
         elif remote_identity.hash != self.identity.hash:
             return LXMPeer.ERROR_NO_ACCESS
@@ -784,19 +783,19 @@ class LXMRouter:
                 self.clean_transient_id_caches()
 
             if self.processing_count % LXMRouter.JOB_STORE_INTERVAL == 0:
-                if self.propagation_node == True:
+                if self.propagation_node:
                     self.clean_message_store()
 
             if self.processing_count % LXMRouter.JOB_PEERINGEST_INTERVAL == 0:
-                if self.propagation_node == True:
+                if self.propagation_node:
                     self.flush_queues()
 
             if self.processing_count % LXMRouter.JOB_ROTATE_INTERVAL == 0:
-                if self.propagation_node == True:
+                if self.propagation_node:
                     self.rotate_peers()
 
             if self.processing_count % LXMRouter.JOB_PEERSYNC_INTERVAL == 0:
-                if self.propagation_node == True:
+                if self.propagation_node:
                     self.sync_peers()
 
     def jobloop(self):
@@ -814,7 +813,8 @@ class LXMRouter:
     def flush_queues(self):
         if len(self.peers) > 0:
             self.flush_peer_distribution_queue()
-            RNS.log("Calculating peer distribution queue mappings...", RNS.LOG_DEBUG); st = time.time()
+            RNS.log("Calculating peer distribution queue mappings...", RNS.LOG_DEBUG)
+            st = time.time()
             for peer_id in self.peers.copy():
                 if peer_id in self.peers:
                     peer = self.peers[peer_id]
@@ -846,11 +846,11 @@ class LXMRouter:
             for link in inactive_links:
                 self.active_propagation_links.remove(link)
                 link.teardown()
-        
+
         except Exception as e:
             RNS.log("An error occurred while cleaning inbound propagation links. The contained exception was: "+str(e), RNS.LOG_ERROR)
 
-        if self.outbound_propagation_link != None and self.outbound_propagation_link.status == RNS.Link.CLOSED:
+        if self.outbound_propagation_link is not None and self.outbound_propagation_link.status == RNS.Link.CLOSED:
             self.outbound_propagation_link = None
             if self.propagation_transfer_state == LXMRouter.PR_COMPLETE:
                 self.acknowledge_sync_completion()
@@ -889,7 +889,7 @@ class LXMRouter:
     def update_stamp_cost(self, destination_hash, stamp_cost):
         RNS.log(f"Updating outbound stamp cost for {RNS.prettyhexrep(destination_hash)} to {stamp_cost}", RNS.LOG_DEBUG)
         self.outbound_stamp_costs[destination_hash] = [time.time(), stamp_cost]
-        
+
         def job():
             self.save_outbound_stamp_costs()
         threading.Thread(target=self.save_outbound_stamp_costs, daemon=True).start()
@@ -902,13 +902,13 @@ class LXMRouter:
     def get_announce_app_data(self, destination_hash):
         if destination_hash in self.delivery_destinations:
             delivery_destination = self.delivery_destinations[destination_hash]
-            
+
             display_name = None
-            if delivery_destination.display_name != None:
+            if delivery_destination.display_name is not None:
                 display_name = delivery_destination.display_name.encode("utf-8")
 
             stamp_cost = None
-            if delivery_destination.stamp_cost != None and type(delivery_destination.stamp_cost) == int:
+            if delivery_destination.stamp_cost is not None and type(delivery_destination.stamp_cost) == int:
                 if delivery_destination.stamp_cost > 0 and delivery_destination.stamp_cost < 255:
                     stamp_cost = delivery_destination.stamp_cost
 
@@ -928,7 +928,7 @@ class LXMRouter:
             priority_weight = 0.1
         else:
             priority_weight = 1.0
-        
+
         weight = priority_weight * age_weight * lxm_size
 
         return weight
@@ -946,11 +946,12 @@ class LXMRouter:
         if destination_hash in self.available_tickets["inbound"]:
             for ticket in self.available_tickets["inbound"][destination_hash]:
                 ticket_entry = self.available_tickets["inbound"][destination_hash][ticket]
-                expires = ticket_entry[0]; validity_left = expires - now
+                expires = ticket_entry[0]
+                validity_left = expires - now
                 if validity_left > LXMessage.TICKET_RENEW:
                     RNS.log(f"Found generated ticket for {RNS.prettyhexrep(destination_hash)} with {RNS.prettytime(validity_left)} of validity left, re-using this one", RNS.LOG_DEBUG)
                     return [expires, ticket]
-        
+
         else:
             self.available_tickets["inbound"][destination_hash] = {}
 
@@ -1018,7 +1019,7 @@ class LXMRouter:
             else:
                 RNS.log("Purging message "+RNS.prettyhexrep(transient_id)+" due to invalid file path", RNS.LOG_WARNING)
                 removed_entries[transient_id] = filepath
-        
+
         removed_count = 0
         for transient_id in removed_entries:
             try:
@@ -1036,8 +1037,8 @@ class LXMRouter:
         # Check size of message store and cull if needed
         try:
             message_storage_size = self.message_storage_size()
-            if message_storage_size != None:
-                if self.message_storage_limit != None and message_storage_size > self.message_storage_limit:
+            if message_storage_size is not None:
+                if self.message_storage_limit is not None and message_storage_size > self.message_storage_limit:
                     # Clean the message storage according to priorities
                     bytes_needed = message_storage_size - self.message_storage_limit
                     bytes_cleaned = 0
@@ -1062,15 +1063,15 @@ class LXMRouter:
 
                             if os.path.isfile(filepath):
                                 os.unlink(filepath)
-                            
+
                             self.propagation_entries.pop(transient_id)
                             bytes_cleaned += entry[3]
 
                             RNS.log("Removed "+RNS.prettyhexrep(transient_id)+" with weight "+str(w[1])+" to clear up "+RNS.prettysize(entry[3])+", now cleaned "+RNS.prettysize(bytes_cleaned)+" out of "+RNS.prettysize(bytes_needed)+" needed", RNS.LOG_EXTREME)
-    
+
                         except Exception as e:
                             RNS.log("Error while cleaning LXMF message from message store. The contained exception was: "+str(e), RNS.LOG_ERROR)
-    
+
                         finally:
                             i += 1
 
@@ -1120,7 +1121,7 @@ class LXMRouter:
 
         except Exception as e:
             RNS.log("Could not save local node stats to storage. The contained exception was: "+str(e), RNS.LOG_ERROR)
-        
+
 
     def clean_outbound_stamp_costs(self):
         try:
@@ -1132,7 +1133,7 @@ class LXMRouter:
 
             for destination_hash in expired:
                 self.outbound_stamp_costs.pop(destination_hash)
-        
+
         except Exception as e:
             RNS.log(f"Error while cleaning outbound stamp costs. The contained exception was: {e}", RNS.LOG_ERROR)
             RNS.trace_exception(e)
@@ -1173,7 +1174,7 @@ class LXMRouter:
 
                 for inbound_ticket in expired_inbound:
                     self.available_tickets["inbound"][destination_hash].pop(inbound_ticket)
-        
+
         except Exception as e:
             RNS.log(f"Error while cleaning available tickets. The contained exception was: {e}", RNS.LOG_ERROR)
             RNS.trace_exception(e)
@@ -1201,16 +1202,16 @@ class LXMRouter:
                     if not type(self.available_tickets) == dict:
                         RNS.log("Invalid data format for loaded available tickets, recreating...", RNS.LOG_ERROR)
                         self.available_tickets = {"outbound": {}, "inbound": {}, "last_deliveries": {}}
-                    if not "outbound" in self.available_tickets:
+                    if "outbound" not in self.available_tickets:
                         RNS.log("Missing outbound entry in loaded available tickets, recreating...", RNS.LOG_ERROR)
                         self.available_tickets["outbound"] = {}
-                    if not "inbound" in self.available_tickets:
+                    if "inbound" not in self.available_tickets:
                         RNS.log("Missing inbound entry in loaded available tickets, recreating...", RNS.LOG_ERROR)
                         self.available_tickets["inbound"] = {}
-                    if not "last_deliveries" in self.available_tickets:
+                    if "last_deliveries" not in self.available_tickets:
                         RNS.log("Missing local_deliveries entry in loaded available tickets, recreating...", RNS.LOG_ERROR)
                         self.available_tickets["last_deliveries"] = {}
-        
+
         except Exception as e:
             RNS.log(f"An error occurred while reloading available tickets from storage: {e}", RNS.LOG_ERROR)
 
@@ -1229,7 +1230,7 @@ class LXMRouter:
                 try:
                     if link.status == RNS.Link.ACTIVE:
                         link.teardown()
-                except Exception as e:
+                except Exception:
                     RNS.log("Error while tearing down propagation link: {e}", RNS.LOG_ERROR)
 
         if self.propagation_node:
@@ -1243,14 +1244,15 @@ class LXMRouter:
                 try:
                     if link.status == RNS.Link.ACTIVE:
                         link.teardown()
-                except Exception as e:
+                except Exception:
                     RNS.log("Error while tearing down propagation link: {e}", RNS.LOG_ERROR)
 
         RNS.log("Persisting LXMF state data to storage...", RNS.LOG_NOTICE)
         self.flush_queues()
         if self.propagation_node:
             try:
-                st = time.time(); RNS.log(f"Saving {len(self.peers)} peer synchronisation states to storage...", RNS.LOG_NOTICE)
+                st = time.time()
+                RNS.log(f"Saving {len(self.peers)} peer synchronisation states to storage...", RNS.LOG_NOTICE)
                 serialised_peers = []
                 peer_dict = self.peers.copy()
                 for peer_id in peer_dict:
@@ -1290,7 +1292,7 @@ class LXMRouter:
 
     ### Message Download ##################################
     #######################################################
-    
+
     def request_messages_path_job(self):
         job_thread = threading.Thread(target=self.__request_messages_path_job)
         job_thread.setDaemon(True)
@@ -1306,21 +1308,21 @@ class LXMRouter:
         else:
             RNS.log("Propagation node path request timed out", RNS.LOG_DEBUG)
             self.acknowledge_sync_completion(failure_state=LXMRouter.PR_NO_PATH)
-    
+
     def identity_allowed(self, identity):
         if self.auth_required:
             if identity.hash in self.allowed_list:
                 return True
             else:
                 return False
-        
+
         else:
             return True
 
     def message_get_request(self, path, data, request_id, remote_identity, requested_at):
-        if remote_identity == None:
+        if remote_identity is None:
             return LXMPeer.ERROR_NO_IDENTITY
-        
+
         elif not self.identity_allowed(remote_identity):
             return LXMPeer.ERROR_NO_ACCESS
 
@@ -1330,7 +1332,7 @@ class LXMRouter:
 
                 # If both want and have fields are empty, send a list of
                 # available messages.
-                if data[0] == None and data[1] == None:
+                if data[0] is None and data[1] is None:
                     available_messages = []
                     for transient_id in self.propagation_entries:
                         message_entry = self.propagation_entries[transient_id]
@@ -1349,7 +1351,7 @@ class LXMRouter:
 
                 else:
                     # Process messages the client already have
-                    if data[1] != None and len(data[1]) > 0:
+                    if data[1] is not None and len(data[1]) > 0:
                         for transient_id in data[1]:
                             if transient_id in self.propagation_entries and self.propagation_entries[transient_id][0] == remote_destination.hash:
                                 try:
@@ -1357,21 +1359,21 @@ class LXMRouter:
                                     self.propagation_entries.pop(transient_id)
                                     os.unlink(filepath)
                                     RNS.log("Client "+RNS.prettyhexrep(remote_destination.hash)+" purged message "+RNS.prettyhexrep(transient_id)+" at "+str(filepath), RNS.LOG_DEBUG)
-                                
+
                                 except Exception as e:
                                     RNS.log("Error while processing message purge request from "+RNS.prettyhexrep(remote_destination.hash)+". The contained exception was: "+str(e), RNS.LOG_ERROR)
 
 
                     # Process wanted messages
                     response_messages = []
-                    if data[0] != None and len(data[0]) > 0:
+                    if data[0] is not None and len(data[0]) > 0:
                         client_transfer_limit = None
                         if len(data) >= 3:
                             try:
                                 client_transfer_limit = float(data[2])*1000
                                 RNS.log("Client indicates transfer limit of "+RNS.prettysize(client_transfer_limit), RNS.LOG_DEBUG)
-                            except:
-                                pass
+                            except Exception as e:
+                                RNS.log(f"Exception while parsing client transfer limit: {e}", RNS.LOG_DEBUG)
 
                         per_message_overhead = 16 # Really only 2 bytes, but set a bit higher for now
                         cumulative_size = 24 # Initialised to highest reasonable binary structure overhead
@@ -1388,7 +1390,7 @@ class LXMRouter:
                                     lxm_size = len(lxmf_data)
                                     next_size = cumulative_size + (lxm_size+per_message_overhead)
 
-                                    if client_transfer_limit != None and next_size > client_transfer_limit:
+                                    if client_transfer_limit is not None and next_size > client_transfer_limit:
                                         pass
                                     else:
                                         response_messages.append(lxmf_data)
@@ -1400,7 +1402,7 @@ class LXMRouter:
                     self.client_propagation_messages_served += len(response_messages)
                     return response_messages
 
-               
+
             except Exception as e:
                 RNS.log("Error occurred while generating response for download request, the contained exception was: "+str(e), RNS.LOG_DEBUG)
                 return None
@@ -1408,18 +1410,18 @@ class LXMRouter:
     def message_list_response(self, request_receipt):
         if request_receipt.response == LXMPeer.ERROR_NO_IDENTITY:
             RNS.log("Propagation node indicated missing identification on list request, tearing down link.", RNS.LOG_DEBUG)
-            if self.outbound_propagation_link != None:
+            if self.outbound_propagation_link is not None:
                 self.outbound_propagation_link.teardown()
             self.propagation_transfer_state = LXMRouter.PR_NO_IDENTITY_RCVD
 
         elif request_receipt.response == LXMPeer.ERROR_NO_ACCESS:
             RNS.log("Propagation node did not allow list request, tearing down link.", RNS.LOG_DEBUG)
-            if self.outbound_propagation_link != None:
+            if self.outbound_propagation_link is not None:
                 self.outbound_propagation_link.teardown()
             self.propagation_transfer_state = LXMRouter.PR_NO_ACCESS
 
         else:
-            if request_receipt.response != None and isinstance(request_receipt.response, list):
+            if request_receipt.response is not None and isinstance(request_receipt.response, list):
                 haves = []
                 wants = []
                 if len(request_receipt.response) > 0:
@@ -1447,24 +1449,24 @@ class LXMRouter:
 
             else:
                 RNS.log("Invalid message list data received from propagation node", RNS.LOG_DEBUG)
-                if self.outbound_propagation_link != None:
+                if self.outbound_propagation_link is not None:
                     self.outbound_propagation_link.teardown()
 
     def message_get_response(self, request_receipt):
         if request_receipt.response == LXMPeer.ERROR_NO_IDENTITY:
             RNS.log("Propagation node indicated missing identification on get request, tearing down link.", RNS.LOG_DEBUG)
-            if self.outbound_propagation_link != None:
+            if self.outbound_propagation_link is not None:
                 self.outbound_propagation_link.teardown()
             self.propagation_transfer_state = LXMRouter.PR_NO_IDENTITY_RCVD
 
         elif request_receipt.response == LXMPeer.ERROR_NO_ACCESS:
             RNS.log("Propagation node did not allow get request, tearing down link.", RNS.LOG_DEBUG)
-            if self.outbound_propagation_link != None:
+            if self.outbound_propagation_link is not None:
                 self.outbound_propagation_link.teardown()
             self.propagation_transfer_state = LXMRouter.PR_NO_ACCESS
 
         else:
-            if request_receipt.response != None and len(request_receipt.response) > 0:
+            if request_receipt.response is not None and len(request_receipt.response) > 0:
                 haves = []
                 for lxmf_data in request_receipt.response:
                     self.lxmf_propagation(lxmf_data)
@@ -1492,13 +1494,13 @@ class LXMRouter:
 
     def message_get_failed(self, request_receipt):
         RNS.log("Message list/get request failed", RNS.LOG_DEBUG)
-        if self.outbound_propagation_link != None:
+        if self.outbound_propagation_link is not None:
             self.outbound_propagation_link.teardown()
 
     def acknowledge_sync_completion(self, reset_state=False, failure_state=None):
         self.propagation_transfer_last_result = None
         if reset_state or self.propagation_transfer_state <= LXMRouter.PR_COMPLETE:
-            if failure_state == None:
+            if failure_state is None:
                 self.propagation_transfer_state = LXMRouter.PR_IDLE
             else:
                 self.propagation_transfer_state = failure_state
@@ -1512,7 +1514,7 @@ class LXMRouter:
             return True
         else:
             return False
-    
+
     def cancel_outbound(self, message_id):
         try:
             if message_id in self.pending_deferred_stamps:
@@ -1526,12 +1528,12 @@ class LXMRouter:
                 if lxm.message_id == message_id:
                     lxmessage = lxm
 
-            if lxmessage != None:
+            if lxmessage is not None:
                 lxmessage.state = LXMessage.CANCELLED
                 if lxmessage in self.pending_outbound:
                     RNS.log(f"Cancelling {lxmessage} in outbound queue", RNS.LOG_DEBUG)
                     if lxmessage.representation == LXMessage.RESOURCE:
-                        if lxmessage.resource_representation != None:
+                        if lxmessage.resource_representation is not None:
                             lxmessage.resource_representation.cancel()
 
                     self.process_outbound()
@@ -1543,7 +1545,7 @@ class LXMRouter:
     def handle_outbound(self, lxmessage):
         destination_hash = lxmessage.get_destination().hash
 
-        if lxmessage.stamp_cost == None:
+        if lxmessage.stamp_cost is None:
             if destination_hash in self.outbound_stamp_costs:
                 stamp_cost = self.outbound_stamp_costs[destination_hash][1]
                 lxmessage.stamp_cost = stamp_cost
@@ -1554,7 +1556,7 @@ class LXMRouter:
         # If an outbound ticket is available for this
         # destination, attach it to the message.
         lxmessage.outbound_ticket = self.get_outbound_ticket(destination_hash)
-        if lxmessage.outbound_ticket != None and lxmessage.defer_stamp:
+        if lxmessage.outbound_ticket is not None and lxmessage.defer_stamp:
             RNS.log(f"Deferred stamp generation was requested for {lxmessage}, but outbound ticket was applied, processing immediately", RNS.LOG_DEBUG)
             lxmessage.defer_stamp = False
 
@@ -1577,7 +1579,7 @@ class LXMRouter:
 
         lxmessage.determine_transport_encryption()
 
-        if lxmessage.defer_stamp and lxmessage.stamp_cost == None:
+        if lxmessage.defer_stamp and lxmessage.stamp_cost is None:
             RNS.log(f"Deferred stamp generation was requested for {lxmessage}, but no stamp is required, processing immediately", RNS.LOG_DEBUG)
             lxmessage.defer_stamp = False
 
@@ -1600,7 +1602,7 @@ class LXMRouter:
         for lxm_id in self.pending_deferred_stamps:
             if self.pending_deferred_stamps[lxm_id].hash == lxm_hash:
                 return self.pending_deferred_stamps[lxm_id].progress
-        
+
         return None
 
     def get_outbound_lxm_stamp_cost(self, lxm_hash):
@@ -1611,7 +1613,7 @@ class LXMRouter:
         for lxm_id in self.pending_deferred_stamps:
             if self.pending_deferred_stamps[lxm_id].hash == lxm_hash:
                 return self.pending_deferred_stamps[lxm_id].stamp_cost
-        
+
         return None
 
 
@@ -1641,7 +1643,7 @@ class LXMRouter:
                             threading.Thread(target=save_job, daemon=True).start()
 
             required_stamp_cost = self.delivery_destinations[message.destination_hash].stamp_cost
-            if required_stamp_cost != None:
+            if required_stamp_cost is not None:
                 destination_tickets = self.get_inbound_tickets(message.source_hash)
                 if message.validate_stamp(required_stamp_cost, tickets=destination_tickets):
                     message.stamp_valid = True
@@ -1662,10 +1664,13 @@ class LXMRouter:
                 else:
                     RNS.log(f"Received {message} with valid stamp", RNS.LOG_DEBUG)
 
-            if phy_stats != None:
-                if "rssi" in phy_stats: message.rssi = phy_stats["rssi"]
-                if "snr" in phy_stats: message.snr = phy_stats["snr"]
-                if "q" in phy_stats: message.q = phy_stats["q"]
+            if phy_stats is not None:
+                if "rssi" in phy_stats:
+                    message.rssi = phy_stats["rssi"]
+                if "snr" in phy_stats:
+                    message.snr = phy_stats["snr"]
+                if "q" in phy_stats:
+                    message.q = phy_stats["q"]
 
             # TODO: Update these descriptions to account for ratchets
             if destination_type == RNS.Destination.SINGLE:
@@ -1691,7 +1696,7 @@ class LXMRouter:
             else:
                 self.locally_delivered_transient_ids[message.hash] = time.time()
 
-            if self.__delivery_callback != None and callable(self.__delivery_callback):
+            if self.__delivery_callback is not None and callable(self.__delivery_callback):
                 try:
                     self.__delivery_callback(message)
                 except Exception as e:
@@ -1720,9 +1725,12 @@ class LXMRouter:
 
             try:
                 reticulum = RNS.Reticulum.get_instance()
-                if packet.rssi == None: packet.rssi = reticulum.get_packet_rssi(packet.packet_hash)
-                if packet.snr  == None: packet.snr  = reticulum.get_packet_snr(packet.packet_hash)
-                if packet.q    == None: packet.q    = reticulum.get_packet_q(packet.packet_hash)
+                if packet.rssi is None:
+                    packet.rssi = reticulum.get_packet_rssi(packet.packet_hash)
+                if packet.snr is None:
+                    packet.snr  = reticulum.get_packet_snr(packet.packet_hash)
+                if packet.q is None:
+                    packet.q    = reticulum.get_packet_q(packet.packet_hash)
             except Exception as e:
                 RNS.log("Error while retrieving physical link stats for LXMF delivery packet: "+str(e), RNS.LOG_ERROR)
 
@@ -1752,7 +1760,7 @@ class LXMRouter:
     def delivery_resource_advertised(self, resource):
         size = resource.get_data_size()
         limit = self.delivery_per_transfer_limit*1000
-        if limit != None and size > limit:
+        if limit is not None and size > limit:
             RNS.log("Rejecting "+RNS.prettysize(size)+" incoming LXMF delivery resource, since it exceeds the limit of "+RNS.prettysize(limit), RNS.LOG_DEBUG)
             return False
         else:
@@ -1788,7 +1796,7 @@ class LXMRouter:
                 peer.last_heard = time.time()
                 peer.propagation_transfer_limit = propagation_transfer_limit
                 RNS.log(f"Peering config updated for {RNS.prettyhexrep(destination_hash)}", RNS.LOG_VERBOSE)
-            
+
         else:
             if len(self.peers) < self.max_peers:
                 peer = LXMPeer(self, destination_hash)
@@ -1801,7 +1809,7 @@ class LXMRouter:
                 RNS.log(f"Max peers reached, not peering with {RNS.prettyhexrep(destination_hash)}", RNS.LOG_DEBUG)
 
     def unpeer(self, destination_hash, timestamp = None):
-        if timestamp == None:
+        if timestamp is None:
             timestamp = int(time.time())
 
         if destination_hash in self.peers:
@@ -1826,7 +1834,7 @@ class LXMRouter:
                 if len(untested_peers) >= rotation_headroom:
                     RNS.log("Newly added peer threshold reached, postponing peer rotation", RNS.LOG_DEBUG)
                     return
-                
+
                 fully_synced_peers = {}
                 for peer_id in peers:
                     peer = peers[peer_id]
@@ -1838,12 +1846,11 @@ class LXMRouter:
                     ms = "" if len(fully_synced_peers) == 1 else "s"
                     RNS.log(f"Found {len(fully_synced_peers)} fully synced peer{ms}, using as peer rotation pool basis", RNS.LOG_DEBUG)
 
-                culled_peers  = []
                 waiting_peers = []
                 unresponsive_peers = []
                 for peer_id in peers:
                     peer = peers[peer_id]
-                    if not peer_id in self.static_peers and peer.state == LXMPeer.IDLE:
+                    if peer_id not in self.static_peers and peer.state == LXMPeer.IDLE:
                         if peer.alive:
                             if peer.offered == 0:
                                 # Don't consider for unpeering until at
@@ -1895,7 +1902,7 @@ class LXMRouter:
         for peer_id in peers:
             peer = peers[peer_id]
             if time.time() > peer.last_heard + LXMPeer.MAX_UNREACHABLE:
-                if not peer_id in self.static_peers:
+                if peer_id not in self.static_peers:
                     culled_peers.append(peer_id)
             else:
                 if peer.state == LXMPeer.IDLE and len(peer.unhandled_messages) > 0:
@@ -1916,7 +1923,7 @@ class LXMRouter:
                 reverse=True
             )[0:min(LXMRouter.FASTEST_N_RANDOM_POOL, len(waiting_peers))]
             peer_pool.extend(fastest_peers)
-            
+
             unknown_speed_peers = [p for p in waiting_peers if p.sync_transfer_rate == 0]
             if len(unknown_speed_peers) > 0:
                 peer_pool.extend(
@@ -1928,11 +1935,11 @@ class LXMRouter:
                 )
 
             RNS.log("Selecting peer to sync from "+str(len(waiting_peers))+" waiting peers.", RNS.LOG_DEBUG)
-            
+
         elif len(unresponsive_peers) > 0:
             RNS.log("No active peers available, randomly selecting peer to sync from "+str(len(unresponsive_peers))+" unresponsive peers.", RNS.LOG_DEBUG)
             peer_pool = unresponsive_peers
-        
+
         if len(peer_pool) > 0:
             selected_index = random.randint(0,len(peer_pool)-1)
             selected_peer = peer_pool[selected_index]
@@ -1958,20 +1965,20 @@ class LXMRouter:
     def propagation_resource_advertised(self, resource):
         if self.from_static_only:
             remote_identity = resource.link.get_remote_identity()
-            if remote_identity == None:
-                RNS.log(f"Rejecting propagation resource from unidentified peer", RNS.LOG_DEBUG)
+            if remote_identity is None:
+                RNS.log("Rejecting propagation resource from unidentified peer", RNS.LOG_DEBUG)
                 return False
             else:
                 remote_destination = RNS.Destination(remote_identity, RNS.Destination.OUT, RNS.Destination.SINGLE, APP_NAME, "propagation")
                 remote_hash = remote_destination.hash
                 remote_str  = RNS.prettyhexrep(remote_hash)
-                if not remote_hash in self.static_peers:
+                if remote_hash not in self.static_peers:
                     RNS.log(f"Rejecting propagation resource from {remote_str} not in static peers list", RNS.LOG_DEBUG)
                     return False
 
         size = resource.get_data_size()
         limit = self.propagation_per_transfer_limit*1000
-        if limit != None and size > limit:
+        if limit is not None and size > limit:
             RNS.log(f"Rejecting {RNS.prettysize(size)} incoming propagation resource, since it exceeds the limit of {RNS.prettysize(limit)}", RNS.LOG_DEBUG)
             return False
         else:
@@ -1983,7 +1990,7 @@ class LXMRouter:
                 pass
             else:
                 data = msgpack.unpackb(data)
-                remote_timebase = data[0]
+                data[0]
 
                 messages = data[1]
                 for lxmf_data in messages:
@@ -1997,14 +2004,14 @@ class LXMRouter:
             RNS.log("The contained exception was: "+str(e), RNS.LOG_ERROR)
 
     def offer_request(self, path, data, request_id, link_id, remote_identity, requested_at):
-        if remote_identity == None:
+        if remote_identity is None:
             return LXMPeer.ERROR_NO_IDENTITY
         else:
             if self.from_static_only:
                 remote_destination = RNS.Destination(remote_identity, RNS.Destination.OUT, RNS.Destination.SINGLE, APP_NAME, "propagation")
                 remote_hash = remote_destination.hash
                 remote_str  = RNS.prettyhexrep(remote_hash)
-                if not remote_hash in self.static_peers:
+                if remote_hash not in self.static_peers:
                     RNS.log(f"Rejecting propagation request from {remote_str} not in static peers list", RNS.LOG_DEBUG)
                     return LXMPeer.ERROR_NO_ACCESS
 
@@ -2013,7 +2020,7 @@ class LXMRouter:
                 wanted_ids = []
 
                 for transient_id in transient_ids:
-                    if not transient_id in self.propagation_entries:
+                    if transient_id not in self.propagation_entries:
                         wanted_ids.append(transient_id)
 
                 if len(wanted_ids) == 0:
@@ -2044,12 +2051,12 @@ class LXMRouter:
                     remote_str  = "unknown peer"
                     remote_identity = resource.link.get_remote_identity()
 
-                    if remote_identity != None:
+                    if remote_identity is not None:
                         remote_destination = RNS.Destination(remote_identity, RNS.Destination.OUT, RNS.Destination.SINGLE, APP_NAME, "propagation")
                         remote_hash = remote_destination.hash
                         remote_str  = RNS.prettyhexrep(remote_hash)
 
-                        if not remote_hash in self.peers:
+                        if remote_hash not in self.peers:
                             if self.autopeer and RNS.Transport.hops_to(remote_hash) <= self.autopeer_maxdepth:
                                 # TODO: Query cache for an announce and get propagation
                                 # transfer limit from that. For now, initialise it to a
@@ -2067,24 +2074,24 @@ class LXMRouter:
                     for lxmf_data in messages:
                         peer = None
                         transient_id = RNS.Identity.full_hash(lxmf_data)
-                        if remote_hash != None and remote_hash in self.peers:
+                        if remote_hash is not None and remote_hash in self.peers:
                             peer = self.peers[remote_hash]
                             peer.incoming += 1
                             peer.rx_bytes += len(lxmf_data)
                         else:
-                            if remote_identity != None:
+                            if remote_identity is not None:
                                 self.unpeered_propagation_incoming += 1
                                 self.unpeered_propagation_rx_bytes += len(lxmf_data)
                             else:
                                 self.client_propagation_messages_received += 1
 
                         self.lxmf_propagation(lxmf_data, from_peer=peer)
-                        if peer != None:
+                        if peer is not None:
                             peer.queue_handled_message(transient_id)
 
                 else:
                     RNS.log("Invalid data structure received at propagation destination, ignoring", RNS.LOG_DEBUG)
-    
+
             except Exception as e:
                 RNS.log("Error while unpacking received propagation resource", RNS.LOG_DEBUG)
                 RNS.trace_exception(e)
@@ -2116,7 +2123,7 @@ class LXMRouter:
             if len(lxmf_data) >= LXMessage.LXMF_OVERHEAD:
                 transient_id = RNS.Identity.full_hash(lxmf_data)
 
-                if (not transient_id in self.propagation_entries and not transient_id in self.locally_processed_transient_ids) or allow_duplicate == True:
+                if (transient_id not in self.propagation_entries and transient_id not in self.locally_processed_transient_ids) or allow_duplicate:
                     received = time.time()
                     destination_hash  = lxmf_data[:LXMessage.DESTINATION_LENGTH]
 
@@ -2126,12 +2133,12 @@ class LXMRouter:
                         delivery_destination = self.delivery_destinations[destination_hash]
                         encrypted_lxmf_data = lxmf_data[LXMessage.DESTINATION_LENGTH:]
                         decrypted_lxmf_data = delivery_destination.decrypt(encrypted_lxmf_data)
-                        if decrypted_lxmf_data != None:
+                        if decrypted_lxmf_data is not None:
                             delivery_data = lxmf_data[:LXMessage.DESTINATION_LENGTH]+decrypted_lxmf_data
                             self.lxmf_delivery(delivery_data, delivery_destination.type, ratchet_id=delivery_destination.latest_ratchet_id, method=LXMessage.PROPAGATED, no_stamp_enforcement=no_stamp_enforcement, allow_duplicate=allow_duplicate)
                             self.locally_delivered_transient_ids[transient_id] = time.time()
 
-                            if signal_local_delivery != None:
+                            if signal_local_delivery is not None:
                                 return signal_local_delivery
 
                     else:
@@ -2152,7 +2159,7 @@ class LXMRouter:
                     return True
 
                 else:
-                    if signal_duplicate != None:
+                    if signal_duplicate is not None:
                         return signal_duplicate
 
                     else:
@@ -2175,9 +2182,9 @@ class LXMRouter:
             else:
                 lxmf_data = base64.urlsafe_b64decode(uri.replace(LXMessage.URI_SCHEMA+"://", "").replace("/", "")+"==")
                 transient_id = RNS.Identity.full_hash(lxmf_data)
-                
+
                 router_propagation_result = self.lxmf_propagation(lxmf_data, signal_local_delivery=signal_local_delivery, signal_duplicate=signal_duplicate, allow_duplicate=allow_duplicate, is_paper_message=True)
-                if router_propagation_result != False:
+                if router_propagation_result:
                     RNS.log("LXM with transient ID "+RNS.prettyhexrep(transient_id)+" was ingested.", RNS.LOG_DEBUG)
                     return router_propagation_result
                 else:
@@ -2199,7 +2206,7 @@ class LXMRouter:
         if lxmessage.state != LXMessage.REJECTED:
             lxmessage.state = LXMessage.FAILED
 
-        if lxmessage.failed_callback != None and callable(lxmessage.failed_callback):
+        if lxmessage.failed_callback is not None and callable(lxmessage.failed_callback):
             lxmessage.failed_callback(lxmessage)
 
     def process_deferred_stamps(self):
@@ -2214,18 +2221,18 @@ class LXMRouter:
                     selected_message_id = None
                     for message_id in self.pending_deferred_stamps:
                         lxmessage = self.pending_deferred_stamps[message_id]
-                        if selected_lxm == None:
+                        if selected_lxm is None:
                             selected_lxm = lxmessage
                             selected_message_id = message_id
 
-                    if selected_lxm != None:
+                    if selected_lxm is not None:
                         if selected_lxm.state == LXMessage.CANCELLED:
                             RNS.log(f"Message cancelled during deferred stamp generation for {selected_lxm}.", RNS.LOG_DEBUG)
                             selected_lxm.stamp_generation_failed = True
                             self.pending_deferred_stamps.pop(selected_message_id)
-                            if selected_lxm.failed_callback != None and callable(selected_lxm.failed_callback):
+                            if selected_lxm.failed_callback is not None and callable(selected_lxm.failed_callback):
                                 selected_lxm.failed_callback(lxmessage)
-                            
+
                             return
 
                         RNS.log(f"Starting stamp generation for {selected_lxm}...", RNS.LOG_DEBUG)
@@ -2243,7 +2250,7 @@ class LXMRouter:
                                 RNS.log(f"Message cancelled during deferred stamp generation for {selected_lxm}.", RNS.LOG_DEBUG)
                                 selected_lxm.stamp_generation_failed = True
                                 self.pending_deferred_stamps.pop(selected_message_id)
-                                if selected_lxm.failed_callback != None and callable(selected_lxm.failed_callback):
+                                if selected_lxm.failed_callback is not None and callable(selected_lxm.failed_callback):
                                     selected_lxm.failed_callback(lxmessage)
                             else:
                                 RNS.log(f"Deferred stamp generation did not succeed. Failing {selected_lxm}.", RNS.LOG_ERROR)
@@ -2271,8 +2278,8 @@ class LXMRouter:
                 delivery_destination_hash = lxmessage.get_destination().hash
                 if lxmessage.method == LXMessage.DIRECT and delivery_destination_hash in self.direct_links:
                     direct_link = self.direct_links[delivery_destination_hash]
-                    if not hasattr(direct_link, "backchannel_identified") or direct_link.backchannel_identified == False:
-                        if direct_link.initiator == True:
+                    if not hasattr(direct_link, "backchannel_identified") or not direct_link.backchannel_identified:
+                        if direct_link.initiator:
                             source_destination_hash = lxmessage.get_source().hash
                             if source_destination_hash in self.delivery_destinations:
                                 backchannel_identity = self.delivery_destinations[source_destination_hash].identity
@@ -2289,19 +2296,20 @@ class LXMRouter:
             elif lxmessage.state == LXMessage.CANCELLED:
                 RNS.log("Cancellation requested for "+str(lxmessage)+", removing from outbound queue", RNS.LOG_DEBUG)
                 self.pending_outbound.remove(lxmessage)
-                if lxmessage.failed_callback != None and callable(lxmessage.failed_callback):
+                if lxmessage.failed_callback is not None and callable(lxmessage.failed_callback):
                     lxmessage.failed_callback(lxmessage)
 
             elif lxmessage.state == LXMessage.REJECTED:
                 RNS.log("Receiver rejected "+str(lxmessage)+", removing from outbound queue", RNS.LOG_DEBUG)
                 self.pending_outbound.remove(lxmessage)
-                if lxmessage.failed_callback != None and callable(lxmessage.failed_callback):
+                if lxmessage.failed_callback is not None and callable(lxmessage.failed_callback):
                     lxmessage.failed_callback(lxmessage)
 
             else:
                 RNS.log("Outbound processing for "+str(lxmessage)+" to "+RNS.prettyhexrep(lxmessage.get_destination().hash), RNS.LOG_DEBUG)
 
-                if lxmessage.progress == None or lxmessage.progress < 0.01: lxmessage.progress = 0.01
+                if lxmessage.progress is None or lxmessage.progress < 0.01:
+                    lxmessage.progress = 0.01
 
                 # Outbound handling for opportunistic messages
                 if lxmessage.method == LXMessage.OPPORTUNISTIC:
@@ -2338,7 +2346,7 @@ class LXMRouter:
                     if lxmessage.delivery_attempts <= LXMRouter.MAX_DELIVERY_ATTEMPTS:
                         delivery_destination_hash = lxmessage.get_destination().hash
                         direct_link = None
-                        
+
                         if delivery_destination_hash in self.direct_links:
                             # An established direct link already exists to
                             # the destination, so we'll try to use it for
@@ -2353,9 +2361,9 @@ class LXMRouter:
                             direct_link = self.backchannel_links[delivery_destination_hash]
                             RNS.log(f"Using available backchannel link {direct_link} to {RNS.prettyhexrep(delivery_destination_hash)}", RNS.LOG_DEBUG)
 
-                        if direct_link != None:
+                        if direct_link is not None:
                             if direct_link.status == RNS.Link.ACTIVE:
-                                if lxmessage.progress == None or lxmessage.progress < 0.05:
+                                if lxmessage.progress is None or lxmessage.progress < 0.05:
                                     lxmessage.progress = 0.05
                                 if lxmessage.state != LXMessage.SENDING:
                                     RNS.log("Starting transfer of "+str(lxmessage)+" to "+RNS.prettyhexrep(lxmessage.get_destination().hash)+" on link "+str(direct_link), RNS.LOG_DEBUG)
@@ -2367,7 +2375,7 @@ class LXMRouter:
                                     else:
                                         RNS.log("Waiting for proof for "+str(lxmessage)+" sent as link packet", RNS.LOG_DEBUG)
                             elif direct_link.status == RNS.Link.CLOSED:
-                                if direct_link.activated_at != None:
+                                if direct_link.activated_at is not None:
                                     RNS.log("The link to "+RNS.prettyhexrep(lxmessage.get_destination().hash)+" was closed", RNS.LOG_DEBUG)
                                 else:
                                     if not hasattr(lxmessage, "path_request_retried"):
@@ -2417,13 +2425,13 @@ class LXMRouter:
                 elif lxmessage.method == LXMessage.PROPAGATED:
                     RNS.log("Attempting propagated delivery for "+str(lxmessage)+" to "+RNS.prettyhexrep(lxmessage.get_destination().hash), RNS.LOG_DEBUG)
 
-                    if self.outbound_propagation_node == None:
+                    if self.outbound_propagation_node is None:
                         RNS.log("No outbound propagation node specified for propagated "+str(lxmessage)+" to "+RNS.prettyhexrep(lxmessage.get_destination().hash), RNS.LOG_ERROR)
                         self.fail_message(lxmessage)
                     else:
                         if lxmessage.delivery_attempts <= LXMRouter.MAX_DELIVERY_ATTEMPTS:
 
-                            if self.outbound_propagation_link != None:
+                            if self.outbound_propagation_link is not None:
                                 # A link already exists, so we'll try to use it
                                 # to deliver the message
                                 if self.outbound_propagation_link.status == RNS.Link.ACTIVE:

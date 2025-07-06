@@ -1,9 +1,9 @@
-import RNS
-import RNS.vendor.umsgpack as msgpack
-
+import multiprocessing
 import os
 import time
-import multiprocessing
+
+import RNS
+import RNS.vendor.umsgpack as msgpack
 
 WORKBLOCK_EXPAND_ROUNDS = 3000
 
@@ -33,13 +33,13 @@ def stamp_value(workblock, stamp):
     while ((i & (1 << (bits - 1))) == 0):
         i = (i << 1)
         value += 1
- 
+
     return value
 
 def generate_stamp(message_id, stamp_cost):
     RNS.log(f"Generating stamp with cost {stamp_cost} for {RNS.prettyhexrep(message_id)}...", RNS.LOG_DEBUG)
     workblock = stamp_workblock(message_id)
-    
+
     start_time = time.time()
     stamp = None
     rounds = 0
@@ -53,10 +53,10 @@ def generate_stamp(message_id, stamp_cost):
 
     else:
         stamp, rounds = job_linux(stamp_cost, workblock, message_id)
-    
+
     duration = time.time() - start_time
     speed = rounds/duration
-    if stamp != None:
+    if stamp is not None:
         value = stamp_value(workblock, stamp)
 
     RNS.log(f"Stamp with value {value} generated in {RNS.prettytime(duration)}, {rounds} rounds, {int(speed)} rounds per second", RNS.LOG_DEBUG)
@@ -108,10 +108,11 @@ def job_simple(stamp_cost, workblock, message_id):
     pstamp = os.urandom(256//8)
     st = time.time()
 
-    active_jobs[message_id] = False;
+    active_jobs[message_id] = False
 
     def sv(s, c, w):
-        target = 0b1<<256-c; m = w+s
+        target = 0b1<<256-c
+        m = w+s
         result = RNS.Identity.full_hash(m)
         if int.from_bytes(result, byteorder="big") > target:
             return False
@@ -119,16 +120,17 @@ def job_simple(stamp_cost, workblock, message_id):
             return True
 
     while not sv(pstamp, stamp_cost, workblock) and not active_jobs[message_id]:
-        pstamp = os.urandom(256//8); rounds += 1
+        pstamp = os.urandom(256//8)
+        rounds += 1
         if rounds % 2500 == 0:
             speed = rounds / (time.time()-st)
             RNS.log(f"Stamp generation running. {rounds} rounds completed so far, {int(speed)} rounds per second", RNS.LOG_DEBUG)
 
-    if active_jobs[message_id] == True:
+    if active_jobs[message_id]:
         pstamp = None
 
     active_jobs.pop(message_id)
-    
+
     return pstamp, rounds
 
 def job_linux(stamp_cost, workblock, message_id):
@@ -141,12 +143,12 @@ def job_linux(stamp_cost, workblock, message_id):
     rounds_queue = multiprocessing.Queue()
 
     def job(stop_event, pn, sc, wb):
-        terminated = False
         rounds = 0
         pstamp = os.urandom(256//8)
 
         def sv(s, c, w):
-            target = 0b1<<256-c; m = w+s
+            target = 0b1<<256-c
+            m = w+s
             result = RNS.Identity.full_hash(m)
             if int.from_bytes(result, byteorder="big") > target:
                 return False
@@ -154,13 +156,14 @@ def job_linux(stamp_cost, workblock, message_id):
                 return True
 
         while not stop_event.is_set() and not sv(pstamp, sc, wb):
-            pstamp = os.urandom(256//8); rounds += 1
+            pstamp = os.urandom(256//8)
+            rounds += 1
 
         if not stop_event.is_set():
             stop_event.set()
             result_queue.put(pstamp)
         rounds_queue.put(rounds)
-    
+
     job_procs = []
     RNS.log(f"Starting {jobs} stamp generation workers", RNS.LOG_DEBUG)
     for jpn in range(jobs):
@@ -178,8 +181,8 @@ def job_linux(stamp_cost, workblock, message_id):
     try:
         while True:
             result_queue.get_nowait()
-    except:
-        pass
+    except Exception as e:
+        RNS.log(f"Exception while draining result_queue: {e}", RNS.LOG_DEBUG)
 
     for j in range(jobs):
         nrounds = 0
@@ -219,19 +222,19 @@ def job_android(stamp_cost, workblock, message_id):
     # Android, so we need to manually dispatch and
     # manage workloads here, while periodically
     # checking in on the progress.
-    
+
     stamp = None
     start_time = time.time()
     total_rounds = 0
     rounds_per_worker = 1000
-    
+
     use_nacl = False
     try:
         import nacl.encoding
         import nacl.hash
         use_nacl = True
-    except:
-        pass
+    except Exception as e:
+        RNS.log(f"Exception while importing nacl: {e}", RNS.LOG_DEBUG)
 
     if use_nacl:
         def full_hash(m):
@@ -274,12 +277,12 @@ def job_android(stamp_cost, workblock, message_id):
             RNS.log(f"Stamp generation worker error: {e}", RNS.LOG_ERROR)
             RNS.trace_exception(e)
 
-    active_jobs[message_id] = False;
+    active_jobs[message_id] = False
 
     RNS.log(f"Dispatching {jobs} workers for stamp generation...", RNS.LOG_DEBUG) # TODO: Remove
 
     results_dict = wm.dict()
-    while stamp == None and active_jobs[message_id] == False:
+    while stamp is None and not active_jobs[message_id]:
         job_procs = []
         try:
             for pnum in range(jobs):
@@ -294,14 +297,14 @@ def job_android(stamp_cost, workblock, message_id):
             for j in results_dict:
                 r = results_dict[j]
                 total_rounds += r[1]
-                if r[0] != None:
+                if r[0] is not None:
                     stamp = r[0]
 
-            if stamp == None:
+            if stamp is None:
                 elapsed = time.time() - start_time
                 speed = total_rounds/elapsed
                 RNS.log(f"Stamp generation running. {total_rounds} rounds completed so far, {int(speed)} rounds per second", RNS.LOG_DEBUG)
-        
+
         except Exception as e:
             RNS.log(f"Stamp generation job error: {e}")
             RNS.trace_exception(e)

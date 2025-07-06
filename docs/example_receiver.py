@@ -1,6 +1,8 @@
-import RNS
-import LXMF
 import time
+
+import RNS
+
+import LXMF
 
 required_stamp_cost = 8
 enforce_stamps = False

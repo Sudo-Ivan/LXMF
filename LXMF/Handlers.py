@@ -1,10 +1,12 @@
-import time
 import threading
+import time
+
 import RNS
 import RNS.vendor.umsgpack as msgpack
 
-from .LXMF import APP_NAME, stamp_cost_from_app_data, pn_announce_data_is_valid
 from .LXMessage import LXMessage
+from .LXMF import APP_NAME, pn_announce_data_is_valid, stamp_cost_from_app_data
+
 
 class LXMFDeliveryAnnounceHandler:
     def __init__(self, lxmrouter):
@@ -19,7 +21,8 @@ class LXMFDeliveryAnnounceHandler:
                     lxmessage.next_delivery_attempt = time.time()
 
                     def outbound_trigger():
-                        while self.lxmrouter.processing_outbound: time.sleep(0.1)
+                        while self.lxmrouter.processing_outbound:
+                            time.sleep(0.1)
                         self.lxmrouter.process_outbound()
 
                     threading.Thread(target=outbound_trigger, daemon=True).start()
@@ -57,18 +60,20 @@ class LXMFPropagationAnnounceHandler:
                             pass
 
                         if len(data) >= 3:
-                            try: propagation_transfer_limit = float(data[2])
-                            except: propagation_transfer_limit = None
+                            try:
+                                propagation_transfer_limit = float(data[2])
+                            except Exception:
+                                propagation_transfer_limit = None
 
                         if destination_hash in self.lxmrouter.static_peers:
                             self.lxmrouter.peer(destination_hash, node_timebase, propagation_transfer_limit, wanted_inbound_peers)
 
                         else:
-                            if data[0] == True:
+                            if data[0]:
                                 if RNS.Transport.hops_to(destination_hash) <= self.lxmrouter.autopeer_maxdepth:
                                     self.lxmrouter.peer(destination_hash, node_timebase, propagation_transfer_limit, wanted_inbound_peers)
 
-                            elif data[0] == False:
+                            elif not data[0]:
                                 self.lxmrouter.unpeer(destination_hash, node_timebase)
 
         except Exception as e:

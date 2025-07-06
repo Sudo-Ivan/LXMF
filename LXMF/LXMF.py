@@ -98,8 +98,10 @@ RENDERER_BBCODE        = 0x03
 
 import RNS
 import RNS.vendor.umsgpack as msgpack
+
+
 def display_name_from_app_data(app_data=None):
-    if app_data == None:
+    if app_data is None:
         return None
     elif len(app_data) == 0:
         return None
@@ -112,7 +114,7 @@ def display_name_from_app_data(app_data=None):
                     return None
                 else:
                     dn = peer_data[0]
-                    if dn == None:
+                    if dn is None:
                         return None
                     else:
                         try:
@@ -127,7 +129,7 @@ def display_name_from_app_data(app_data=None):
             return app_data.decode("utf-8")
 
 def stamp_cost_from_app_data(app_data=None):
-    if app_data == None or app_data == b"":
+    if app_data is None or app_data == b"":
         return None
     else:
         # Version 0.5.0+ announce format
@@ -151,13 +153,13 @@ def pn_announce_data_is_valid(data):
         if len(data) < 3:
             raise ValueError("Invalid announce data: Insufficient peer data")
         else:
-            if data[0] != True and data[0] != False:
+            if not data[0] and data[0]:
                 raise ValueError("Invalid announce data: Indeterminate propagation node status")
             try:
                 int(data[1])
-            except:
+            except Exception:
                 raise ValueError("Invalid announce data: Could not decode peer timebase")
-    
+
     except Exception as e:
         RNS.log(f"Could not validate propagation node announce data: {e}", RNS.LOG_DEBUG)
         return False

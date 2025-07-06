@@ -22,22 +22,22 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-DEFFERED_JOBS_DELAY = 10
-JOBS_INTERVAL = 5
+import argparse
+import os
+import shlex
+import subprocess
+import threading
+import time
 
 import RNS
-import LXMF
-import argparse
-import threading
-import subprocess
-import shlex
-import time
-import os
-
-from LXMF._version import __version__
-from LXMF import APP_NAME
-
 from RNS.vendor.configobj import ConfigObj
+
+import LXMF
+from LXMF import APP_NAME
+from LXMF._version import __version__
+
+DEFFERED_JOBS_DELAY = 10
+JOBS_INTERVAL = 5
 
 configpath     = None
 ignoredpath    = None
@@ -78,7 +78,7 @@ def apply_config():
             active_configuration["peer_announce_interval"] = lxmd_config["lxmf"].as_int("announce_interval")*60
         else:
             active_configuration["peer_announce_interval"] = None
-        
+
         if "lxmf" in lxmd_config and "delivery_transfer_max_accepted_size" in lxmd_config["lxmf"]:
             active_configuration["delivery_transfer_max_accepted_size"] = lxmd_config["lxmf"].as_float("delivery_transfer_max_accepted_size")
             if active_configuration["delivery_transfer_max_accepted_size"] < 0.38:
@@ -128,14 +128,14 @@ def apply_config():
                 active_configuration["message_storage_limit"] = 0.005
         else:
             active_configuration["message_storage_limit"] = 500
-        
+
         if "propagation" in lxmd_config and "propagation_transfer_max_accepted_size" in lxmd_config["propagation"]:
             active_configuration["propagation_transfer_max_accepted_size"] = lxmd_config["propagation"].as_float("propagation_transfer_max_accepted_size")
             if active_configuration["propagation_transfer_max_accepted_size"] < 0.38:
                 active_configuration["propagation_transfer_max_accepted_size"] = 0.38
         else:
             active_configuration["propagation_transfer_max_accepted_size"] = 256
-        
+
         if "propagation" in lxmd_config and "prioritise_destinations" in lxmd_config["propagation"]:
             active_configuration["prioritised_lxmf_destinations"] = lxmd_config["propagation"].as_list("prioritise_destinations")
         else:
@@ -223,7 +223,7 @@ def lxmf_delivery(lxm):
             RNS.log("Calling external program to handle message", RNS.LOG_DEBUG)
             command = active_configuration["on_inbound"]
             processing_command = command+" \""+written_path+"\""
-            return_code = subprocess.call(shlex.split(processing_command), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.call(shlex.split(processing_command), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
         else:
             RNS.log("No action defined for inbound messages, ignoring", RNS.LOG_DEBUG)
@@ -244,10 +244,10 @@ def program_setup(configdir = None, rnsconfigdir = None, run_pn = False, on_inbo
         targetlogdest  = RNS.LOG_STDOUT
 
     # Get configuration
-    if configdir == None:
+    if configdir is None:
         if os.path.isdir("/etc/lxmd") and os.path.isfile("/etc/lxmd/config"):
             configdir = "/etc/lxmd"
-        elif os.path.isdir(RNS.Reticulum.userdir+"/.config/lxmd") and os.path.isfile(Reticulum.userdir+"/.config/lxmd/config"):
+        elif os.path.isdir(RNS.Reticulum.userdir+"/.config/lxmd") and os.path.isfile(RNS.Reticulum.userdir+"/.config/lxmd/config"):
             configdir = RNS.Reticulum.userdir+"/.config/lxmd"
         else:
             configdir = RNS.Reticulum.userdir+"/.lxmd"
@@ -274,29 +274,29 @@ def program_setup(configdir = None, rnsconfigdir = None, run_pn = False, on_inbo
     if os.path.isfile(configpath):
         try:
             lxmd_config = ConfigObj(configpath)
-        except Exception as e:
+        except Exception:
             RNS.log("Could not parse the configuration at "+configpath, RNS.LOG_ERROR)
             RNS.log("Check your configuration file for errors!", RNS.LOG_ERROR)
             RNS.panic()
-    
+
     apply_config()
     RNS.log("Configuration loaded from "+configpath, RNS.LOG_VERBOSE)
 
-    if targetloglevel == None:
+    if targetloglevel is None:
         targetloglevel = 3
 
     if verbosity != 0 or quietness != 0:
         targetloglevel = targetloglevel+verbosity-quietness
-    
+
     # Start Reticulum
     RNS.log("Substantiating Reticulum...")
-    reticulum = RNS.Reticulum(configdir=rnsconfigdir, loglevel=targetloglevel, logdest=targetlogdest)
+    RNS.Reticulum(configdir=rnsconfigdir, loglevel=targetloglevel, logdest=targetlogdest)
 
     # Generate or load primary identity
     if os.path.isfile(identitypath):
         try:
             identity = RNS.Identity.from_file(identitypath)
-            if identity != None:
+            if identity is not None:
                 RNS.log("Loaded Primary Identity %s" % (str(identity)))
             else:
                 RNS.log("Could not load the Primary Identity from "+identitypath, RNS.LOG_ERROR)
@@ -315,7 +315,7 @@ def program_setup(configdir = None, rnsconfigdir = None, run_pn = False, on_inbo
             RNS.log("Could not create and save a new Primary Identity", RNS.LOG_ERROR)
             RNS.log("The contained exception was: %s" % (str(e)), RNS.LOG_ERROR)
             exit(2)
-        
+
     # Start LXMF
     message_router = LXMF.LXMRouter(
         identity = identity,
@@ -327,7 +327,7 @@ def program_setup(configdir = None, rnsconfigdir = None, run_pn = False, on_inbo
         max_peers = active_configuration["max_peers"],
         static_peers = active_configuration["static_peers"],
         from_static_only = active_configuration["from_static_only"])
-    
+
     message_router.register_delivery_callback(lxmf_delivery)
 
     for destination_hash in active_configuration["ignored_lxmf_destinations"]:
@@ -348,7 +348,7 @@ def program_setup(configdir = None, rnsconfigdir = None, run_pn = False, on_inbo
 
         if len(active_configuration["allowed_identities"]) == 0:
             RNS.log("Clint authentication was enabled, but no identity hashes could be loaded from "+str(allowedpath)+". Nobody will be able to sync messages from this propagation node.", RNS.LOG_WARNING)
-            
+
         for identity_hash in active_configuration["allowed_identities"]:
             message_router.allow(identity_hash)
 
@@ -362,7 +362,7 @@ def program_setup(configdir = None, rnsconfigdir = None, run_pn = False, on_inbo
                 if len(dest_hash) == RNS.Reticulum.TRUNCATED_HASHLENGTH//8:
                     message_router.prioritise(dest_hash)
 
-            except Exception as e:
+            except Exception:
                 RNS.log("Cannot prioritise "+str(dest_str)+", it is not a valid destination hash", RNS.LOG_ERROR)
 
         message_router.enable_propagation()
@@ -379,16 +379,16 @@ def program_setup(configdir = None, rnsconfigdir = None, run_pn = False, on_inbo
 def jobs():
     global active_configuration, last_peer_announce, last_node_announce
     global message_router, lxmf_destination
-    
+
     while True:
         try:
-            if "peer_announce_interval" in active_configuration and active_configuration["peer_announce_interval"] != None:
+            if "peer_announce_interval" in active_configuration and active_configuration["peer_announce_interval"] is not None:
                 if time.time() > last_peer_announce + active_configuration["peer_announce_interval"]:
                     RNS.log("Sending announce for LXMF delivery destination", RNS.LOG_VERBOSE)
                     message_router.announce(lxmf_destination.hash)
                     last_peer_announce = time.time()
 
-            if "node_announce_interval" in active_configuration and active_configuration["node_announce_interval"] != None:
+            if "node_announce_interval" in active_configuration and active_configuration["node_announce_interval"] is not None:
                 if time.time() > last_node_announce + active_configuration["node_announce_interval"]:
                     RNS.log("Sending announce for LXMF Propagation Node", RNS.LOG_VERBOSE)
                     message_router.announce_propagation_node()
@@ -458,11 +458,11 @@ def get_status(configdir = None, rnsconfigdir = None, verbosity = 0, quietness =
     global lxmd_config, active_configuration, targetloglevel
     targetlogdest  = RNS.LOG_STDOUT
 
-    if identity_path == None:
-        if configdir == None:
+    if identity_path is None:
+        if configdir is None:
             if os.path.isdir("/etc/lxmd") and os.path.isfile("/etc/lxmd/config"):
                 configdir = "/etc/lxmd"
-            elif os.path.isdir(RNS.Reticulum.userdir+"/.config/lxmd") and os.path.isfile(Reticulum.userdir+"/.config/lxmd/config"):
+            elif os.path.isdir(RNS.Reticulum.userdir+"/.config/lxmd") and os.path.isfile(RNS.Reticulum.userdir+"/.config/lxmd/config"):
                 configdir = RNS.Reticulum.userdir+"/.config/lxmd"
             else:
                 configdir = RNS.Reticulum.userdir+"/.lxmd"
@@ -479,7 +479,7 @@ def get_status(configdir = None, rnsconfigdir = None, verbosity = 0, quietness =
             exit(202)
         else:
             identity = RNS.Identity.from_file(identitypath)
-            if identity == None:
+            if identity is None:
                 RNS.log("Could not load the Primary Identity from "+identitypath, RNS.LOG_ERROR)
                 exit(4)
 
@@ -489,16 +489,16 @@ def get_status(configdir = None, rnsconfigdir = None, verbosity = 0, quietness =
             exit(202)
         else:
             identity = RNS.Identity.from_file(identity_path)
-            if identity == None:
+            if identity is None:
                 RNS.log("Could not load the Primary Identity from "+identity_path, RNS.LOG_ERROR)
-                exit(4)        
+                exit(4)
 
-    if targetloglevel == None:
+    if targetloglevel is None:
         targetloglevel = 3
     if verbosity != 0 or quietness != 0:
         targetloglevel = targetloglevel+verbosity-quietness
-    
-    reticulum = RNS.Reticulum(configdir=rnsconfigdir, loglevel=targetloglevel, logdest=targetlogdest)
+
+    RNS.Reticulum(configdir=rnsconfigdir, loglevel=targetloglevel, logdest=targetlogdest)
     response = query_status(identity, timeout=timeout, exit_on_fail=True)
 
     if response == LXMF.LXMPeer.LXMPeer.ERROR_NO_IDENTITY:
@@ -530,30 +530,42 @@ def get_status(configdir = None, rnsconfigdir = None, verbosity = 0, quietness =
             peered_rx_bytes += p["rx_bytes"]
             peered_tx_bytes += p["tx_bytes"]
 
-            if p["alive"]: available_peers   += 1
-            else:          unreachable_peers += 1
+            if p["alive"]:
+                available_peers   += 1
+            else:
+                unreachable_peers += 1
 
         total_incoming = peered_incoming+s["unpeered_propagation_incoming"]+s["clients"]["client_propagation_messages_received"]
         total_rx_bytes = peered_rx_bytes+s["unpeered_propagation_rx_bytes"]
-        if total_incoming != 0: df = round(peered_outgoing/total_incoming, 2)
-        else:                   df = 0
+        if total_incoming != 0:
+            df = round(peered_outgoing/total_incoming, 2)
+        else:
+            df = 0
 
-        dhs = RNS.prettyhexrep(s["destination_hash"]); uts = RNS.prettytime(s["uptime"])
+        dhs = RNS.prettyhexrep(s["destination_hash"])
+        uts = RNS.prettytime(s["uptime"])
         print(f"\nLXMF Propagation Node running on {dhs}, uptime is {uts}")
 
         if show_status:
-            msb = RNS.prettysize(s["messagestore"]["bytes"]); msl = RNS.prettysize(s["messagestore"]["limit"])
-            ptl = RNS.prettysize(s["propagation_limit"]*1000); uprx = RNS.prettysize(s["unpeered_propagation_rx_bytes"])
-            mscnt = s["messagestore"]["count"]; stp = s["total_peers"]; smp = s["max_peers"]; sdp = s["discovered_peers"]
-            ssp = s["static_peers"]; cprr = s["clients"]["client_propagation_messages_received"]
-            cprs = s["clients"]["client_propagation_messages_served"]; upi = s["unpeered_propagation_incoming"]
+            msb = RNS.prettysize(s["messagestore"]["bytes"])
+            msl = RNS.prettysize(s["messagestore"]["limit"])
+            ptl = RNS.prettysize(s["propagation_limit"]*1000)
+            uprx = RNS.prettysize(s["unpeered_propagation_rx_bytes"])
+            mscnt = s["messagestore"]["count"]
+            stp = s["total_peers"]
+            smp = s["max_peers"]
+            sdp = s["discovered_peers"]
+            ssp = s["static_peers"]
+            cprr = s["clients"]["client_propagation_messages_received"]
+            cprs = s["clients"]["client_propagation_messages_served"]
+            upi = s["unpeered_propagation_incoming"]
             print(f"Messagestore contains {mscnt} messages, {msb} ({ms_util} utilised of {msl})")
             print(f"Accepting propagated messages from {who_str}, {ptl} per-transfer limit")
-            print(f"")
+            print("")
             print(f"Peers   : {stp} total (peer limit is {smp})")
             print(f"          {sdp} discovered, {ssp} static")
             print(f"          {available_peers} available, {unreachable_peers} unreachable")
-            print(f"")
+            print("")
             print(f"Traffic : {total_incoming} messages received in total ({RNS.prettysize(total_rx_bytes)})")
             print(f"          {peered_incoming} messages received from peered nodes ({RNS.prettysize(peered_rx_bytes)})")
             print(f"          {upi} messages received from unpeered nodes ({uprx})")
@@ -561,7 +573,7 @@ def get_status(configdir = None, rnsconfigdir = None, verbosity = 0, quietness =
             print(f"          {cprr} propagation messages received directly from clients")
             print(f"          {cprs} propagation messages served to clients")
             print(f"          Distribution factor is {df}")
-            print(f"")
+            print("")
 
         if show_peers:
             if not show_status:
@@ -576,7 +588,7 @@ def get_status(configdir = None, rnsconfigdir = None, verbosity = 0, quietness =
                     t = "Discovered peer "
                 else:
                     t = "Unknown peer    "
-                a = "Available" if p["alive"] == True else "Unreachable"
+                a = "Available" if p["alive"] else "Unreachable"
                 h = max(time.time()-p["last_heard"], 0)
                 hops = p["network_distance"]
                 hs = "hops unknown" if hops == RNS.Transport.PATHFINDER_M else f"{hops} hop away" if hops == 1 else f"{hops} hops away"
@@ -587,9 +599,15 @@ def get_status(configdir = None, rnsconfigdir = None, verbosity = 0, quietness =
                 else:
                     ls = "never synced"
 
-                sstr = RNS.prettyspeed(p["str"]); sler = RNS.prettyspeed(p["ler"]); stl = RNS.prettysize(p["transfer_limit"]*1000)
-                srxb = RNS.prettysize(p["rx_bytes"]); stxb = RNS.prettysize(p["tx_bytes"]); pmo = pm["offered"]; pmout = pm["outgoing"]
-                pmi = pm["incoming"]; pmuh = pm["unhandled"]
+                sstr = RNS.prettyspeed(p["str"])
+                sler = RNS.prettyspeed(p["ler"])
+                stl = RNS.prettysize(p["transfer_limit"]*1000)
+                srxb = RNS.prettysize(p["rx_bytes"])
+                stxb = RNS.prettysize(p["tx_bytes"])
+                pmo = pm["offered"]
+                pmout = pm["outgoing"]
+                pmi = pm["incoming"]
+                pmuh = pm["unhandled"]
                 print(f"{ind}{t}{RNS.prettyhexrep(peer_id)}")
                 print(f"{ind*2}Status     : {a}, {hs}, last heard {RNS.prettytime(h)} ago")
                 print(f"{ind*2}Speeds     : {sstr} STR, {sler} LER, {stl} transfer limit")
@@ -616,7 +634,7 @@ def main():
         parser.add_argument("--identity", action="store", default=None, help="path to identity used for query request", type=str)
         parser.add_argument("--exampleconfig", action="store_true", default=False, help="print verbose configuration example to stdout and exit")
         parser.add_argument("--version", action="version", version="lxmd {version}".format(version=__version__))
-        
+
         args = parser.parse_args()
 
         if args.exampleconfig:

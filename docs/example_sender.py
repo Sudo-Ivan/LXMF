@@ -1,7 +1,9 @@
-import LXMF
-import RNS
-import time
 import random
+import time
+
+import RNS
+
+import LXMF
 
 random_names = ["Tom", "Delilah", "Nancey", "Williams", "Neomi", "Curtis", "Alexa", "Theodora", "Ted", "Dinorah", "Nicol", "Drusilla", "Annalisa", "Verlene", "Latesha", "Tina", "Mia", "Brock", "Timothy", "Philip", "Willian", "Reyna", "Simona", "Mimi", "Stanford", "Ferne", "Catalina", "Lucie", "Jaye", "Natasha", "Willetta", "Isabel", "Esperanza", "Ciara", "Eusebio", "William", "Elma", "Angelica", "Coreen", "Melani", "Jonathan", "Maryland", "Caroline", "Gregg", "Ora", "Jacqui", "Letty", "Roselle", "Oralee", "Angla"]
 random_titles = ["Long time", "Hi again", "Hi there", "Test message", "", "", "Something different"]
@@ -62,7 +64,7 @@ while True:
     # Finally dispatch the message to the LXMF message
     # router, which will handle the delivery according
     # to the specified message parameters and options:
-    
+
     router.handle_outbound(lxm)
 
     # Wait for user input before starting over

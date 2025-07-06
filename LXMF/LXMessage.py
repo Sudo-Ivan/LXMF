@@ -1,12 +1,11 @@
+import base64
+import time
+
 import RNS
 import RNS.vendor.umsgpack as msgpack
 
-import os
-import time
-import base64
-import multiprocessing
-
 import LXMF.LXStamper as LXStamper
+
 from .LXMF import APP_NAME
 
 
@@ -65,7 +64,7 @@ class LXMessage:
     # we can send in a single encrypted packet is
     # 391 bytes.
     ENCRYPTED_PACKET_MDU = RNS.Packet.ENCRYPTED_MDU + TIMESTAMP_SIZE
-    
+
     # The max content length we can fit in LXMF message
     # inside a single RNS packet is the encrypted MDU, minus
     # the LXMF overhead. We can optimise a bit though, by
@@ -76,7 +75,7 @@ class LXMessage:
     # LXMF message we can send is 295 bytes. If a message
     # is larger than that, a Reticulum link will be used.
     ENCRYPTED_PACKET_MAX_CONTENT = ENCRYPTED_PACKET_MDU - LXMF_OVERHEAD + DESTINATION_LENGTH
-    
+
     # Links can carry a larger MDU, due to less overhead per
     # packet. The link MDU with default Reticulum parameters
     # is 431 bytes.
@@ -105,32 +104,32 @@ class LXMessage:
     PAPER_MDU = ((QR_MAX_STORAGE-(len(URI_SCHEMA)+len("://")))*6)//8
 
     def __str__(self):
-        if self.hash != None:
+        if self.hash is not None:
             return "<LXMessage "+RNS.hexrep(self.hash, delimit=False)+">"
         else:
             return "<LXMessage>"
 
     def __init__(self, destination, source, content = "", title = "", fields = None, desired_method = None, destination_hash = None, source_hash = None, stamp_cost=None, include_ticket=False):
 
-        if isinstance(destination, RNS.Destination) or destination == None:
+        if isinstance(destination, RNS.Destination) or destination is None:
             self.__destination    = destination
-            if destination != None:
+            if destination is not None:
                 self.destination_hash = destination.hash
             else:
                 self.destination_hash = destination_hash
         else:
             raise ValueError("LXMessage initialised with invalid destination")
 
-        if isinstance(source, RNS.Destination) or source == None:
+        if isinstance(source, RNS.Destination) or source is None:
             self.__source    = source
-            if source != None:
+            if source is not None:
                 self.source_hash = source.hash
             else:
                 self.source_hash = source_hash
         else:
             raise ValueError("LXMessage initialised with invalid source")
 
-        if title == None:
+        if title is None:
             title = ""
 
         if type(title) == bytes:
@@ -185,7 +184,7 @@ class LXMessage:
         self.__delivery_destination  = None
         self.__delivery_callback     = None
         self.failed_callback         = None
-        
+
         self.deferred_stamp_generating = False
 
     def set_title_from_string(self, title_string):
@@ -211,7 +210,7 @@ class LXMessage:
             return None
 
     def set_fields(self, fields):
-        if isinstance(fields, dict) or fields == None:
+        if isinstance(fields, dict) or fields is None:
             self.fields = fields or {}
         else:
             raise ValueError("LXMessage property \"fields\" can only be dict or None")
@@ -231,7 +230,7 @@ class LXMessage:
         return self.destination
 
     def set_destination(self, destination):
-        if self.destination == None:
+        if self.destination is None:
             if isinstance(destination, RNS.Destination):
                 self.__destination = destination
             else:
@@ -251,7 +250,7 @@ class LXMessage:
         return self.source
 
     def set_source(self, source):
-        if self.source == None:
+        if self.source is None:
             if isinstance(source, RNS.Destination):
                 self.__source = source
             else:
@@ -278,7 +277,7 @@ class LXMessage:
             return True
 
     def validate_stamp(self, target_cost, tickets=None):
-        if tickets != None:
+        if tickets is not None:
             for ticket in tickets:
                 try:
                     if self.stamp == RNS.Identity.truncated_hash(ticket+self.message_id):
@@ -289,7 +288,7 @@ class LXMessage:
                     RNS.log(f"Error while validating ticket: {e}", RNS.LOG_ERROR)
                     RNS.trace_exception(e)
 
-        if self.stamp == None:
+        if self.stamp is None:
             return False
         else:
             workblock = LXStamper.stamp_workblock(self.message_id)
@@ -303,7 +302,7 @@ class LXMessage:
     def get_stamp(self, timeout=None):
         # If an outbound ticket exists, use this for
         # generating a valid stamp.
-        if self.outbound_ticket != None and type(self.outbound_ticket) == bytes and len(self.outbound_ticket) == LXMessage.TICKET_LENGTH:
+        if self.outbound_ticket is not None and type(self.outbound_ticket) == bytes and len(self.outbound_ticket) == LXMessage.TICKET_LENGTH:
             generated_stamp = RNS.Identity.truncated_hash(self.outbound_ticket+self.message_id)
             self.stamp_value = LXMessage.COST_TICKET
             RNS.log(f"Generated stamp with outbound ticket {RNS.hexrep(self.outbound_ticket)} for {self}", RNS.LOG_DEBUG) # TODO: Remove at some point
@@ -311,13 +310,13 @@ class LXMessage:
 
         # If no stamp cost is required, we can just
         # return immediately.
-        elif self.stamp_cost == None:
+        elif self.stamp_cost is None:
             self.stamp_value = None
             return None
 
         # If a stamp was already generated, return
         # it immediately.
-        elif self.stamp != None:
+        elif self.stamp is not None:
             return self.stamp
 
         # Otherwise, we will need to generate a
@@ -329,13 +328,13 @@ class LXMessage:
                 self.stamp_value = value
                 self.stamp_valid = True
                 return generated_stamp
-            
+
             else:
                 return None
 
     def pack(self):
         if not self.packed:
-            if self.timestamp == None:
+            if self.timestamp is None:
                 self.timestamp = time.time()
 
             self.propagation_packed = None
@@ -352,9 +351,9 @@ class LXMessage:
 
             if not self.defer_stamp:
                 self.stamp       = self.get_stamp()
-                if self.stamp   != None:
+                if self.stamp is not None:
                     self.payload.append(self.stamp)
-            
+
             signed_part      = b""
             signed_part     += hashed_part
             signed_part     += self.hash
@@ -372,9 +371,9 @@ class LXMessage:
 
             # If no desired delivery method has been defined,
             # one will be chosen according to these rules:
-            if self.desired_method == None:
+            if self.desired_method is None:
                 self.desired_method = LXMessage.DIRECT
-            
+
             # If opportunistic delivery was requested, check
             # that message will fit within packet size limits
             if self.desired_method == LXMessage.OPPORTUNISTIC:
@@ -447,7 +446,7 @@ class LXMessage:
             self.progress = 0.50
             self.ratchet_id = lxm_packet.ratchet_id
             self.state = LXMessage.SENT
-        
+
         elif self.method == LXMessage.DIRECT:
             self.state = LXMessage.SENDING
 
@@ -531,7 +530,7 @@ class LXMessage:
         self.state = LXMessage.DELIVERED
         self.progress = 1.0
 
-        if self.__delivery_callback != None and callable(self.__delivery_callback):
+        if self.__delivery_callback is not None and callable(self.__delivery_callback):
             try:
                 self.__delivery_callback(self)
             except Exception as e:
@@ -543,7 +542,7 @@ class LXMessage:
         self.state = LXMessage.SENT
         self.progress = 1.0
 
-        if self.__delivery_callback != None and callable(self.__delivery_callback):
+        if self.__delivery_callback is not None and callable(self.__delivery_callback):
             try:
                 self.__delivery_callback(self)
             except Exception as e:
@@ -555,7 +554,7 @@ class LXMessage:
         self.state = LXMessage.PAPER
         self.progress = 1.0
 
-        if self.__delivery_callback != None and callable(self.__delivery_callback):
+        if self.__delivery_callback is not None and callable(self.__delivery_callback):
             try:
                 self.__delivery_callback(self)
             except Exception as e:
@@ -585,7 +584,7 @@ class LXMessage:
         if self.state != LXMessage.CANCELLED:
             if packet_receipt:
                 packet_receipt.destination.teardown()
-        
+
             self.state = LXMessage.OUTBOUND
 
     def __update_transfer_progress(self, resource):
@@ -659,7 +658,7 @@ class LXMessage:
         if not self.packed:
             self.pack()
 
-        if self.desired_method == LXMessage.PAPER and self.paper_packed != None:
+        if self.desired_method == LXMessage.PAPER and self.paper_packed is not None:
             # Encode packed LXM with URL-safe base64 and remove padding
             encoded_bytes = base64.urlsafe_b64encode(self.paper_packed)
 
@@ -669,7 +668,7 @@ class LXMessage:
             if finalise:
                 self.determine_transport_encryption()
                 self.__mark_paper_generated()
-            
+
             return lxm_uri
 
         else:
@@ -679,9 +678,9 @@ class LXMessage:
         if not self.packed:
             self.pack()
 
-        if self.desired_method == LXMessage.PAPER and self.paper_packed != None:
+        if self.desired_method == LXMessage.PAPER and self.paper_packed is not None:
             import importlib
-            if importlib.util.find_spec('qrcode') != None:
+            if importlib.util.find_spec('qrcode') is not None:
                 import qrcode
 
                 qr = qrcode.make(
@@ -710,7 +709,7 @@ class LXMessage:
         signature            = lxmf_bytes[2*LXMessage.DESTINATION_LENGTH:2*LXMessage.DESTINATION_LENGTH+LXMessage.SIGNATURE_LENGTH]
         packed_payload       = lxmf_bytes[2*LXMessage.DESTINATION_LENGTH+LXMessage.SIGNATURE_LENGTH:]
         unpacked_payload     = msgpack.unpackb(packed_payload)
-        
+
         # Extract stamp from payload if included
         if len(unpacked_payload) > 4:
             stamp = unpacked_payload[4]
@@ -728,13 +727,13 @@ class LXMessage:
         fields               = unpacked_payload[3]
 
         destination_identity = RNS.Identity.recall(destination_hash)
-        if destination_identity != None:
+        if destination_identity is not None:
             destination = RNS.Destination(destination_identity, RNS.Destination.OUT, RNS.Destination.SINGLE, APP_NAME, "delivery")
         else:
             destination = None
-        
+
         source_identity = RNS.Identity.recall(source_hash)
-        if source_identity != None:
+        if source_identity is not None:
             source = RNS.Destination(source_identity, RNS.Destination.OUT, RNS.Destination.SINGLE, APP_NAME, "delivery")
         else:
             source = None
@@ -768,7 +767,6 @@ class LXMessage:
                     message.signature_validated = False
                     message.unverified_reason = LXMessage.SIGNATURE_INVALID
             else:
-                signature_validated = False
                 message.unverified_reason = LXMessage.SOURCE_UNKNOWN
                 RNS.log("Unpacked LXMF message signature could not be validated, since source identity is unknown", RNS.LOG_DEBUG)
         except Exception as e:
@@ -776,7 +774,7 @@ class LXMessage:
             RNS.log("Error while validating LXMF message signature. The contained exception was: "+str(e), RNS.LOG_ERROR)
 
         return message
-        
+
     @staticmethod
     def unpack_from_file(lxmf_file_handle):
         try:
